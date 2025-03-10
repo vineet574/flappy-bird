@@ -6,7 +6,7 @@ pygame.init()
 
 # Game Constants
 WIDTH, HEIGHT = 500, 800
-GRAVITY = 0.5
+GRAVITY = 1
 JUMP_STRENGTH = -10
 PIPE_WIDTH = 70
 PIPE_GAP = 150
