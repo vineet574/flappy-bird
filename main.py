@@ -1,5 +1,6 @@
 import pygame
 import random
+import time
 
 pygame.init()
 
@@ -10,29 +11,39 @@ PIPE_WIDTH = 70
 PIPE_GAP = 150
 PIPE_SPEED = 3
 BIRD_RADIUS = 20
+POWER_UP_TIME = 5
 
 WHITE = (255, 255, 255)
 GREEN = (0, 200, 0)
 BLUE = (135, 206, 250)
 YELLOW = (255, 255, 0)
 RED = (255, 0, 0)
+NIGHT_BLUE = (20, 24, 82)
 
 jump_sound = pygame.mixer.Sound("jump.wav")
 score_sound = pygame.mixer.Sound("score.wav")
+power_up_sound = pygame.mixer.Sound("powerup.wav")
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Flappy Bird")
 
 clock = pygame.time.Clock()
+start_time = time.time()
+
+paused = False
+highest_score = 0
 
 class Bird:
     def __init__(self):
         self.x = 50
         self.y = HEIGHT // 2
         self.velocity = 0
+        self.invincible = False
+        self.invincibility_timer = 0
 
     def update(self):
-        self.velocity += GRAVITY
+        if not self.invincible:
+            self.velocity += GRAVITY
         self.y += self.velocity
 
     def jump(self):
@@ -40,7 +51,7 @@ class Bird:
         jump_sound.play()
 
     def draw(self, screen):
-        pygame.draw.circle(screen, YELLOW, (self.x, int(self.y)), BIRD_RADIUS)
+        pygame.draw.circle(screen, YELLOW if not self.invincible else RED, (self.x, int(self.y)), BIRD_RADIUS)
 
 class Pipe:
     def __init__(self, x):
@@ -58,20 +69,42 @@ class Pipe:
         pygame.draw.rect(screen, GREEN, (self.x, self.height + PIPE_GAP, PIPE_WIDTH, HEIGHT - self.height - PIPE_GAP))
 
     def check_collision(self, bird):
-        if (bird.x + BIRD_RADIUS > self.x and bird.x - BIRD_RADIUS < self.x + PIPE_WIDTH):
+        if bird.invincible:
+            return False
+        if bird.x + BIRD_RADIUS > self.x and bird.x - BIRD_RADIUS < self.x + PIPE_WIDTH:
             if bird.y - BIRD_RADIUS < self.height or bird.y + BIRD_RADIUS > self.height + PIPE_GAP:
                 return True
         return False
 
+class PowerUp:
+    def __init__(self):
+        self.x = random.randint(100, WIDTH - 100)
+        self.y = random.randint(100, HEIGHT - 100)
+        self.active = True
+
+    def draw(self, screen):
+        if self.active:
+            pygame.draw.circle(screen, RED, (self.x, self.y), 15)
+
+    def check_collision(self, bird):
+        if self.active and abs(bird.x - self.x) < 20 and abs(bird.y - self.y) < 20:
+            self.active = False
+            bird.invincible = True
+            bird.invincibility_timer = POWER_UP_TIME
+            power_up_sound.play()
+
 def game_loop():
+    global highest_score
     bird = Bird()
     pipes = [Pipe(WIDTH), Pipe(WIDTH + 200), Pipe(WIDTH + 400)]
+    power_up = PowerUp()
     running = True
     score = 0
     font = pygame.font.Font(None, 36)
-
+    
     while running:
-        screen.fill(BLUE)
+        global paused
+        screen.fill(NIGHT_BLUE if time.time() - start_time > 30 else BLUE)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -79,8 +112,20 @@ def game_loop():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
                     bird.jump()
+                if event.key == pygame.K_p:
+                    paused = not paused
+
+        if paused:
+            pause_text = font.render("Paused! Press P to resume.", True, WHITE)
+            screen.blit(pause_text, (WIDTH // 2 - pause_text.get_width() // 2, HEIGHT // 2))
+            pygame.display.update()
+            continue
 
         bird.update()
+        if bird.invincible:
+            bird.invincibility_timer -= 1
+            if bird.invincibility_timer <= 0:
+                bird.invincible = False
 
         for pipe in pipes:
             pipe.update()
@@ -89,6 +134,9 @@ def game_loop():
                 score_sound.play()
             if pipe.check_collision(bird):
                 running = False
+
+        power_up.draw(screen)
+        power_up.check_collision(bird)
 
         bird.draw(screen)
         for pipe in pipes:
@@ -103,21 +151,27 @@ def game_loop():
         pygame.display.update()
         clock.tick(30)
 
+    highest_score = max(highest_score, score)
+    with open("high_score.txt", "w") as file:
+        file.write(str(highest_score))
+
     game_over(score)
 
 def game_over(score):
     font = pygame.font.Font(None, 48)
     while True:
-        screen.fill(BLUE)
-        
+        screen.fill(NIGHT_BLUE)
+
         game_over_text = font.render("Game Over", True, RED)
         score_text = font.render(f"Score: {score}", True, WHITE)
+        high_score_text = font.render(f"High Score: {highest_score}", True, WHITE)
         
-        screen.blit(game_over_text, (WIDTH // 2 - game_over_text.get_width() // 2, HEIGHT // 2 - game_over_text.get_height() // 2 - 20))
-        screen.blit(score_text, (WIDTH // 2 - score_text.get_width() // 2, HEIGHT // 2 + score_text.get_height() // 2))
+        screen.blit(game_over_text, (WIDTH // 2 - game_over_text.get_width() // 2, HEIGHT // 2 - 80))
+        screen.blit(score_text, (WIDTH // 2 - score_text.get_width() // 2, HEIGHT // 2 - 20))
+        screen.blit(high_score_text, (WIDTH // 2 - high_score_text.get_width() // 2, HEIGHT // 2 + 20))
 
         restart_text = font.render("Press R to Restart or Q to Quit", True, WHITE)
-        screen.blit(restart_text, (WIDTH // 2 - restart_text.get_width() // 2, HEIGHT // 2 + restart_text.get_height() // 2 + 20))
+        screen.blit(restart_text, (WIDTH // 2 - restart_text.get_width() // 2, HEIGHT // 2 + 60))
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
