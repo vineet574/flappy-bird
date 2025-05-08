@@ -52,3 +52,5 @@ Enjoy the game! 🎮🚀
 1. **Save the file** as `README.md` in your game folder.
 2. If you're using **GitHub**, commit and push the file so others can view it on your repository.
 
+New Features Added:
+✅ Day-Night Cycle: Background color smoothly transitions over time. ✅ Random Power-Ups: Occasionally appear, granting temporary abilities like slower pipes or invincibility. ✅ Score Milestone Effects: Changes difficulty dynamically based on the score. ✅ Leaderboard System: Stores the highest score locally. ✅ Pause & Resume: Press P to pause, R to resume. ✅ New Sound Effects: Different sounds for milestones, collisions, and power-ups.
