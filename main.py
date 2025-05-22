@@ -16,21 +16,23 @@ POWER_UP_TIME = 5
 WHITE = (255, 255, 255)
 GREEN = (0, 200, 0)
 BLUE = (135, 206, 250)
+NIGHT_BLUE = (20, 24, 82)
 YELLOW = (255, 255, 0)
 RED = (255, 0, 0)
-NIGHT_BLUE = (20, 24, 82)
 
+pygame.mixer.init()
 jump_sound = pygame.mixer.Sound("jump.wav")
 score_sound = pygame.mixer.Sound("score.wav")
 power_up_sound = pygame.mixer.Sound("powerup.wav")
+pygame.mixer.music.load("background_music.mp3")
+pygame.mixer.music.play(-1)
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Flappy Bird")
-
 clock = pygame.time.Clock()
 start_time = time.time()
-
 paused = False
+muted = False
 highest_score = 0
 
 class Bird:
@@ -48,7 +50,8 @@ class Bird:
 
     def jump(self):
         self.velocity = JUMP_STRENGTH
-        jump_sound.play()
+        if not muted:
+            jump_sound.play()
 
     def draw(self, screen):
         pygame.draw.circle(screen, YELLOW if not self.invincible else RED, (self.x, int(self.y)), BIRD_RADIUS)
@@ -90,30 +93,57 @@ class PowerUp:
         if self.active and abs(bird.x - self.x) < 20 and abs(bird.y - self.y) < 20:
             self.active = False
             bird.invincible = True
-            bird.invincibility_timer = POWER_UP_TIME
-            power_up_sound.play()
+            bird.invincibility_timer = POWER_UP_TIME * 30  # Convert seconds to frames
+            if not muted:
+                power_up_sound.play()
+
+def get_background_color():
+    elapsed = time.time() - start_time
+    if elapsed < 30:
+        return BLUE
+    elif elapsed < 60:
+        ratio = (elapsed - 30) / 30
+        r = BLUE[0] + int((NIGHT_BLUE[0] - BLUE[0]) * ratio)
+        g = BLUE[1] + int((NIGHT_BLUE[1] - BLUE[1]) * ratio)
+        b = BLUE[2] + int((NIGHT_BLUE[2] - BLUE[2]) * ratio)
+        return (r, g, b)
+    else:
+        return NIGHT_BLUE
 
 def game_loop():
-    global highest_score
+    global highest_score, paused, muted
     bird = Bird()
     pipes = [Pipe(WIDTH), Pipe(WIDTH + 200), Pipe(WIDTH + 400)]
     power_up = PowerUp()
-    running = True
     score = 0
+    milestone_display = ""
+    milestone_timer = 0
     font = pygame.font.Font(None, 36)
-    
-    while running:
-        global paused
-        screen.fill(NIGHT_BLUE if time.time() - start_time > 30 else BLUE)
 
+    try:
+        with open("high_score.txt", "r") as file:
+            highest_score = int(file.read())
+    except:
+        highest_score = 0
+
+    running = True
+    while running:
+        screen.fill(get_background_color())
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                running = False
+                pygame.quit()
+                return
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
                     bird.jump()
-                if event.key == pygame.K_p:
+                elif event.key == pygame.K_p:
                     paused = not paused
+                elif event.key == pygame.K_m:
+                    muted = not muted
+                    if muted:
+                        pygame.mixer.music.pause()
+                    else:
+                        pygame.mixer.music.unpause()
 
         if paused:
             pause_text = font.render("Paused! Press P to resume.", True, WHITE)
@@ -131,7 +161,11 @@ def game_loop():
             pipe.update()
             if pipe.x == bird.x:
                 score += 1
-                score_sound.play()
+                if not muted:
+                    score_sound.play()
+                if score % 5 == 0:
+                    milestone_display = f"Milestone reached! {score} points!"
+                    milestone_timer = 60
             if pipe.check_collision(bird):
                 running = False
 
@@ -144,6 +178,11 @@ def game_loop():
 
         score_text = font.render(f"Score: {score}", True, WHITE)
         screen.blit(score_text, (10, 10))
+
+        if milestone_timer > 0:
+            milestone = font.render(milestone_display, True, RED)
+            screen.blit(milestone, (WIDTH // 2 - milestone.get_width() // 2, 40))
+            milestone_timer -= 1
 
         if bird.y + BIRD_RADIUS > HEIGHT or bird.y - BIRD_RADIUS < 0:
             running = False
@@ -165,26 +204,25 @@ def game_over(score):
         game_over_text = font.render("Game Over", True, RED)
         score_text = font.render(f"Score: {score}", True, WHITE)
         high_score_text = font.render(f"High Score: {highest_score}", True, WHITE)
-        
+        restart_text = font.render("Press R to Restart or Q to Quit", True, WHITE)
+
         screen.blit(game_over_text, (WIDTH // 2 - game_over_text.get_width() // 2, HEIGHT // 2 - 80))
         screen.blit(score_text, (WIDTH // 2 - score_text.get_width() // 2, HEIGHT // 2 - 20))
         screen.blit(high_score_text, (WIDTH // 2 - high_score_text.get_width() // 2, HEIGHT // 2 + 20))
-
-        restart_text = font.render("Press R to Restart or Q to Quit", True, WHITE)
         screen.blit(restart_text, (WIDTH // 2 - restart_text.get_width() // 2, HEIGHT // 2 + 60))
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 return
-            
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_r:
                     game_loop()
+                    return
                 elif event.key == pygame.K_q:
                     pygame.quit()
                     return
-        
+
         pygame.display.update()
 
 game_loop()
