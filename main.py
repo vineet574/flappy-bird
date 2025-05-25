@@ -4,7 +4,7 @@ import time
 
 pygame.init()
 
-WIDTH, HEIGHT = 500, 800
+WIDTH, HEIGHT = 700, 1000
 GRAVITY = 1
 JUMP_STRENGTH = -20
 PIPE_WIDTH = 70
